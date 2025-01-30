@@ -101,6 +101,7 @@ best_idx = np.argmax(accuracies)
 best_feat_name = feature_names[best_idx]
 best_accuracy = accuracies[best_idx]
 
+# Fancy presentation
 print("-------------------------------------------------")
 print("Which factor has the best logistic fit?")
 print(f"The feature '{best_feat_name}' (index {best_idx}) has the highest accuracy = {best_accuracy:.4f}.")
