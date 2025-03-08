@@ -1,0 +1,3 @@
+[submodule "CWRU_Bearing_NumPy"]
+	path = CWRU_Bearing_NumPy
+	url = https://github.com/srigas/CWRU_Bearing_NumPy
