@@ -1,6 +1,3 @@
-[submodule "external-libs/CWRU_Bearing_NumPy"]
-	path = external-libs/CWRU_Bearing_NumPy
-	url = https://github.com/srigas/CWRU_Bearing_NumPy
 [submodule "Project/CWRU_Bearing_NumPy"]
 	path = Project/CWRU_Bearing_NumPy
 	url = https://github.com/srigas/CWRU_Bearing_NumPy
