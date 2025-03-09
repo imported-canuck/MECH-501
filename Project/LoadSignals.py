@@ -37,6 +37,7 @@ def load_signals(rpm_dict):
     Given a dictionary mapping descriptive keys to .npz filenames, 
     load the data and return a dict of:
         signals_dict[key] = {'DE': np.array, 'FE': np.array, 'BA': np.array}
+    Keys are same as those in rpm_dict
 
     Flattening is done so each array becomes 1D.
     If a file does not have FE or BA data, those keys are skipped. All files have DE data.
