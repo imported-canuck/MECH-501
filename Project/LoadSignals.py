@@ -1,4 +1,4 @@
-"""
+'''
 LoadSignal.py
 
 This script loads bearing vibration data from four dictionaries of filepaths:
@@ -8,15 +8,18 @@ This script loads bearing vibration data from four dictionaries of filepaths:
  - files_1797RPM
 
 Each dictionary key is a descriptive string, e.g. '1730_B_7_DE48', and its value
-is the name of the .npz file. The script loads each .npz, checks for 'DE', 'FE',
-and 'BA' arrays, and stores the flattened data in a signals dictionary.
+is the name of the .npz file. The script loads each .npz, checks for 'DE', 'FE'
+arrays, and stores the flattened data in a signals dictionary. Disregards 'BA' signals
 
 The function is used to produce four dictionaries:
-    signals_1730RPM, signals_1750RPM, signals_1772RPM, signals_1797RPM
-where each is a dict: { same key : {'DE': array, 'FE': array, 'BA': array} }
+ - signals_1730RPM
+ - signals_1750RPM
+ - signals_1772RPM
+ - signals_1797RPM
+where each is a nested dict: { same key : {'DE': array, 'FE': array} }
 Each dict has keys corresponding to descriptive names (same keys as bearing data dict)
-Corresponding values is a dict containing the tags of the location ('DE', 'FE', 'BA') and the time-series vibration data at those locations.
-"""
+Corresponding values is a dict containing the tags of the location ('DE', 'FE') and the time-series vibration data at those locations.
+'''
 
 import numpy as np
 
@@ -31,16 +34,19 @@ from BearingData import (
 
 def load_signals(rpm_dict):
     """
-    Input: rpm_dict (dictionary)
-    Output: signals_dict (dictionary)
+    Parameters: 
+        rpm_dict (dict): Dictionary mapping descriptive keys to .npz filenames.
+
+    Returns: 
+        signals_dict (dict): Dictionary mapping descriptive keys to dictionary
+        containing channel tags and time-series data.
 
     Given a dictionary mapping descriptive keys to .npz filenames, 
     load the data and return a dict of:
-        signals_dict[key] = {'DE': np.array, 'FE': np.array, 'BA': np.array}
+        signals_dict[key] = {'DE': np.array, 'FE': np.array}
     Keys are same as those in rpm_dict
 
     Flattening is done so each array becomes 1D.
-    If a file does not have FE or BA data, those keys are skipped. All files have DE data.
     """
     signals_dict = {}
     for key, filename in rpm_dict.items():
@@ -52,9 +58,9 @@ def load_signals(rpm_dict):
 
         # Create a sub-dict
         signals_dict[key] = {} # Set key same as rpm_dict
-        # Each .npz might have 'DE', 'FE', 'BA'
-        for sensor_key in ["DE", "FE", "BA"]:
-            if sensor_key in npz_data.files: # The key is the sensor name ("DE", "FE", "BA")
+        # Each .npz might (should) have 'DE', 'FE'
+        for sensor_key in ["DE", "FE"]:
+            if sensor_key in npz_data.files: # The key is the sensor name ("DE", "FE")
                 arr = npz_data[sensor_key] # The value is the time-series data array
 
                 # Flatten to 1D array since shape is (N,1)
