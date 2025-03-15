@@ -3,16 +3,18 @@ Preprocess.py
 
 This script preprocesses the organized data, preparing it for feature extraction.
 
-It uses the four dictionaires produced by load_signals in LoadSignals.py
+It uses the dictionaries produced by load_signals in LoadSignals.py
  - signals_1730RPM
  - signals_1750RPM
  - signals_1772RPM
  - signals_1797RPM
+The main function actually merges these dictionaries before preprocessing
+but the operations are functionally identical.
 
 Function "downsample" downsamples the 48 kHz signals to 12 kHz in order to maintain consistency.
 
 Function "segment_signals" splits all of the time series signals into segments, according to a 
-defined or defualt segment size and overlap.
+defined or defualt segment size and overlap. 
 '''
 
 import numpy as np
