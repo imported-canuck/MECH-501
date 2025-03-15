@@ -39,7 +39,7 @@ def load_signals(rpm_dict):
 
     Returns: 
         signals_dict (dict): Dictionary mapping descriptive keys to dictionary
-        containing channel tags and time-series data.
+            containing channel tags and time-series data.
 
     Given a dictionary mapping descriptive keys to .npz filenames, 
     load the data and return a dict of:
