@@ -20,7 +20,7 @@ def extract_label_and_fault_size(filename):
         return "Normal", None
     else:
         parts = filename.split("_")
-        # parts[0] is the RPM, parts[1] is the fault type.
+        # parts[0] is the RPM, parts[1] is the fault type, parts[2] is the fault size.
         fault_type = parts[1]
         # Map any outer race type to "OR"
         if "OR" in fault_type:
@@ -30,7 +30,7 @@ def extract_label_and_fault_size(filename):
         elif "B" in fault_type:
             label = "B"
         else:
-            label = fault_type  # fallback
+            label = fault_type  # fallback (shouldn't happen)
         try:
             fault_size = parts[2]
         except IndexError:
@@ -38,14 +38,7 @@ def extract_label_and_fault_size(filename):
         return label, fault_size
 
 def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
-    """
-    Splits the normalized feature matrix X (with corresponding keys) into training and testing sets.
-    
-    For non-normal (faulty) samples:
-        - Files with fault size '7' or '14' are assigned to training.
-        - Files with fault size '21' are assigned to testing.
-    For Normal samples, a random split is performed with the given ratio (normal_split_ratio for training).
-    
+    """ 
     Parameters:
         X (np.array): Normalized feature matrix of shape (n_samples, n_features)
         keys (list): List of tuples (filename, channel, window_index) for each row in X.
@@ -54,8 +47,16 @@ def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
     
     Returns:
         X_train, y_train, X_test, y_test: Arrays with features and corresponding labels.
+    
+    Splits the normalized feature matrix X (with corresponding keys) into training and testing sets.
+    
+    For non-normal (faulty) samples:
+        - Files with fault size '7' or '14' are assigned to training.
+        - Files with fault size '21' are assigned to testing.
+    For Normal samples, a random split is performed with the given ratio (normal_split_ratio for training).
+   
     """
-    random.seed(seed)
+    # random.seed(seed)
     X_train, y_train = [], []
     X_test, y_test = [], []
     
@@ -95,9 +96,14 @@ def normalize_features(features_dict):
             Case 2 (merged channels):
             { filename: [ {feat1: value, feat2: value, ...}, ... ],
               ... }
+
     Returns:
         X_normalized (np.array): Normalized feature matrix of shape (n_samples, n_features).
         keys (list): A list of tuples (filename, channel, window_index) corresponding to each sample.
+    
+    Places feature dictionaries into a matrix, yielding a matrix contianing the 
+    time/frequency domain features of each data point per row. keys provides the
+    mapping to the files each row of X_normalized belongs to.
     """
     data = []
     keys = []
@@ -129,6 +135,10 @@ def train_and_evaluate_classifier(X, keys):
     Parameters:
         X (np.array): Normalized feature matrix of shape (n_samples, n_features)
         keys (list): List of tuples (filename, channel, window_index) for each row in X.
+        
+    Returns:
+        report (dict): Classification report dictionary.
+        cm (np.array): Confusion matrix.
     """
     # Split data based on fault size and Normal random split
     X_train, y_train, X_test, y_test = split_features_by_fault_size(X, keys)
@@ -143,12 +153,17 @@ def train_and_evaluate_classifier(X, keys):
     # Predict on test data
     y_pred = clf.predict(X_test)
     
-    # Print classification report and confusion matrix
+    from sklearn.metrics import classification_report, confusion_matrix
+    report = classification_report(y_test, y_pred, output_dict=True)
+    cm = confusion_matrix(y_test, y_pred)
+    
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
     
     print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+    print(cm)
+    
+    return report, cm
 
 if __name__ == "__main__":
     # For testing purposes, create dummy data.
