@@ -9,8 +9,9 @@ It uses the four dictionaires produced by load_signals in LoadSignals.py
  - signals_1772RPM
  - signals_1797RPM
 
-First, it downsamples the 48 kHz signals to 12 kHz in order to maintain consistency.
-Then, it splits all of the time series signals into segments, according to a 
+Function "downsample" downsamples the 48 kHz signals to 12 kHz in order to maintain consistency.
+
+Function "segment_signals" splits all of the time series signals into segments, according to a 
 defined or defualt segment size and overlap.
 '''
 
@@ -37,11 +38,11 @@ def downsample(signals_dict, factor=4):
     for outer_key, inner_dict in signals_dict.items():
         normalized_signals[outer_key] = {}
         # Check if the outer key indicates a 48 kHz signal or a Normal signal.
-        if "DE48" in outer_key or "Normal" in outer_key:
+        if "DE48" in outer_key or "Normal" in outer_key: # Case where we downsample
             for inner_key, inner_arr in inner_dict.items():
                 # Downsample the array by taking every 'factor'-th element.
                 normalized_signals[outer_key][inner_key] = inner_arr[::factor]
-        else:
+        else: # Case where we don't
             # If condition is not met, just copy the inner arrays over.
             for inner_key, inner_arr in inner_dict.items():
                 normalized_signals[outer_key][inner_key] = inner_arr
@@ -73,7 +74,7 @@ def segment_signals(signals_dict, window_size=12000, overlap=0.5):
     """
     Parameters:
         signals_dict (dict): Dictionary of signals for a specific RPM.
-            Keys are filenames (e.g., "1730_IR_7_DE48"), and values are
+            Keys are descriptive names (e.g., "1730_IR_7_DE48"), and values are
             dictionaries with keys 'DE' and 'FE' and corresponding np.array signals.
         window_size (int): Number of samples per window.
         overlap (float): Fractional overlap between windows.
@@ -85,10 +86,10 @@ def segment_signals(signals_dict, window_size=12000, overlap=0.5):
     Applies windowing to all signals in a given dictionary for a particular RPM.
     
     The input dictionary (signals_dict) is assumed to have the following structure:
-        { filename1: {'DE': np.array, 'FE': np.array},
-          filename2: {'DE': np.array, 'FE': np.array},
+        { dataname1: {'DE': np.array, 'FE': np.array},
+          dataname2: {'DE': np.array, 'FE': np.array},
           ... }
-    where each filename is a string like "1730_IR_7_DE48".
+    where each dataname is a string like "1730_IR_7_DE48".
     
     This function processes each signal by splitting it into overlapping windows.
     """
@@ -122,25 +123,25 @@ if __name__ == "__main__":
     
     # Print out the shapes of the original arrays
     for desc, data_dict in example_signals.items():
-        for location, arr in data_dict.items():
+        for location, arr in data_dict.items(): # Access nested dict
             print(f"{desc} location {location}: shape = {arr.shape}")
 
-    print("Normalizing...")
+    print("\nDownsampling...")
     # Downsample the signals
-    normalized_signals = downsample(example_signals, factor=4)
+    downsampled_signals = downsample(example_signals, factor=4)
 
-    # Print out the shapes of the downsampled arrays to compare and verify
-    for desc, data_dict in normalized_signals.items():
+    # Print out the shapes of the downsampled arrays to verify downsampling
+    for desc, data_dict in downsampled_signals.items():
         for location, arr in data_dict.items():
             print(f"{desc} location {location}: shape = {arr.shape}")
 
     print("\nSegmenting signals with default window size and overlap...")
-    # Here, we segment all signals within the normalized dictionary. In practice, you'd call this on a specific RPM dictionary.
-    segmented_signals = segment_signals(normalized_signals, window_size=12000, overlap=0.5)
+    # Segment all the signals in the downsampled dict
+    segmented_signals = segment_signals(downsampled_signals, window_size=12000, overlap=0.5)
     
-    # Print the resulting windowed segments for each file and channel.
+    # Print the resulting windowed segments for each file and channel
     for desc, channels in segmented_signals.items():
         for location, windows in channels.items():
             print(f"{desc} location {location}: segmented shape = {windows.shape}")
-
+    # Confirm that the signals have been segmented into 2D np array as expected
 
