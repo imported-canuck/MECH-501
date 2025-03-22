@@ -25,55 +25,75 @@ def time_domain_features(segmented_signals):
               ... }
               
     Returns:
-        features_dict (dict): Dictionary with the same keys as segmented_signals.
-            Each channel (DE, FE) will have a list of dictionaries, one per window,
-            containing the computed features.
+        merged_features (dict): Dictionary with the same filenames as keys.
+            For each file, a list of merged feature dictionaries is returned;
+            each dictionary contains features computed from both the DE and FE signals,
+            with keys prefixed by "DE_" or "FE_".
     
-        Extract time-domain features for each window in the segmented signals.
-    
-    For each window, the following time-domain features are computed:
-      - Mean
-      - Standard Deviation
-      - RMS (Root Mean Square)
-      - Peak-to-Peak (max-min)
-      - Crest Factor (max / RMS)
-      - Kurtosis
-      - Skewness
+    This function computes the following time-domain features for each window:
+      - mean, std, rms, ptp (peak-to-peak), crest (max/RMS), kurtosis, skewness.
+    If both DE and FE are present, it merges their feature dictionaries per window.
+    If only one channel is available, it computes features for that channel and prefixes accordingly.
     """
-    features_dict = {}
+    merged_features = {}
     for filename, channels in segmented_signals.items():
-        features_dict[filename] = {} # Set outer keys as same as in segmented_signals
-        for channel in ['DE', 'FE']:
-            if channel in channels: # Safeguard to only process channels that exist
-                windows = channels[channel]
-                channel_features = []
-                # Process each window (row in the 2D array)
-                for window in windows:
-                    # Compute time-domain features
-                    mean_val = np.mean(window)
-                    std_val = np.std(window)
-                    rms_val = np.sqrt(np.mean(window**2))
-                    ptp_val = np.ptp(window)  # Peak-to-peak value
-                    crest = (np.max(np.abs(window)) / rms_val) if rms_val != 0 else 0 # C = Peak/RMS
-                    kurt = kurtosis(window)
-                    skewness = skew(window)
-                    
-                    # Store the computed features in a dictionary
-                    feat_dict = {
-                        'mean': mean_val,
-                        'std': std_val,
-                        'rms': rms_val,
-                        'ptp': ptp_val,
-                        'crest': crest,
-                        'kurtosis': kurt,
-                        'skewness': skewness
+        merged_features[filename] = []  # We want one list of merged feature dictionaries per file
+        if 'DE' in channels and 'FE' in channels:
+            de_windows = channels['DE']
+            fe_windows = channels['FE']
+            n_windows = min(len(de_windows), len(fe_windows))
+            for i in range(n_windows):
+                # Compute features for DE
+                de_win = de_windows[i]
+                de_feats = {
+                    'mean': np.mean(de_win),
+                    'std': np.std(de_win),
+                    'rms': np.sqrt(np.mean(de_win**2)),
+                    'ptp': np.ptp(de_win),
+                    'crest': np.max(np.abs(de_win)) / np.sqrt(np.mean(de_win**2)) if np.sqrt(np.mean(de_win**2)) != 0 else 0,
+                    'kurtosis': kurtosis(de_win),
+                    'skewness': skew(de_win)
+                }
+                # Compute features for FE
+                fe_win = fe_windows[i]
+                fe_feats = {
+                    'mean': np.mean(fe_win),
+                    'std': np.std(fe_win),
+                    'rms': np.sqrt(np.mean(fe_win**2)),
+                    'ptp': np.ptp(fe_win),
+                    'crest': np.max(np.abs(fe_win)) / np.sqrt(np.mean(fe_win**2)) if np.sqrt(np.mean(fe_win**2)) != 0 else 0,
+                    'kurtosis': kurtosis(fe_win),
+                    'skewness': skew(fe_win)
+                }
+                # Merge the two dictionaries with prefixes
+                merged_dict = {}
+                for k, v in de_feats.items():
+                    merged_dict["DE_" + k] = v
+                for k, v in fe_feats.items():
+                    merged_dict["FE_" + k] = v
+                merged_features[filename].append(merged_dict)
+        else:
+            # If only one channel is available, process that channel
+            for channel in channels:
+                feats_list = []
+                for window in channels[channel]:
+                    feats = {
+                        'mean': np.mean(window),
+                        'std': np.std(window),
+                        'rms': np.sqrt(np.mean(window**2)),
+                        'ptp': np.ptp(window),
+                        'crest': np.max(np.abs(window)) / np.sqrt(np.mean(window**2)) if np.sqrt(np.mean(window**2)) != 0 else 0,
+                        'kurtosis': kurtosis(window),
+                        'skewness': skew(window)
                     }
-                    channel_features.append(feat_dict)
-                features_dict[filename][channel] = channel_features
-    return features_dict
+                    # Prefix keys with the channel name
+                    prefixed = { f"{channel}_{k}": v for k, v in feats.items() }
+                    feats_list.append(prefixed)
+                merged_features[filename] = feats_list
+    return merged_features
 
 def frequency_domain_features(segmented_signals, fs=12000):
-    """  
+    """
     Parameters:
         segmented_signals (dict): Dictionary structured as:
             { filename: { 'DE': 2D np.array (num_windows, window_size),
@@ -82,59 +102,68 @@ def frequency_domain_features(segmented_signals, fs=12000):
         fs (int): Sampling frequency (default 12000 Hz).
         
     Returns:
-        features_dict (dict): Dictionary with the same keys as segmented_signals.
-            Each channel (DE, FE) will have a list of dictionaries, one per window,
-            containing the computed frequency-domain features.
-
-    Extract frequency-domain features for each window in the segmented signals.
-    
-    For each window, the following features are computed:
-      - Dominant Frequency: Frequency at maximum FFT magnitude.
-      - Spectral Centroid: Weighted average frequency.
-      - Spectral Bandwidth: Spread of the spectrum around the centroid.
-      - Peak FFT Amplitude: Maximum amplitude in the FFT spectrum.
-      - Total Spectral Energy: Sum of squared FFT magnitudes.
+        merged_features (dict): Dictionary where for each filename, a list of merged frequency-domain 
+        feature dictionaries is returned. For each window, features computed from DE and FE are merged
+        (with keys prefixed by "DE_" and "FE_").
     """
-    features_dict = {}
+    merged_features = {}
     for filename, channels in segmented_signals.items():
-        features_dict[filename] = {}
-        for channel in ['DE', 'FE']:
-            if channel in channels: # Safeguard to only process channels that exist
-                windows = channels[channel]
-                channel_features = []
-                for window in windows:
-                    # Compute FFT on the window (using real FFT)
+        merged_features[filename] = []
+        if 'DE' in channels and 'FE' in channels:
+            de_windows = channels['DE']
+            fe_windows = channels['FE']
+            n_windows = min(len(de_windows), len(fe_windows))
+            for i in range(n_windows):
+                # Compute frequency features for DE
+                fft_vals_de = np.fft.rfft(de_windows[i])
+                mag_de = np.abs(fft_vals_de)
+                freqs_de = np.fft.rfftfreq(len(de_windows[i]), d=1/fs)
+                de_feats = {
+                    'dominant_freq': freqs_de[np.argmax(mag_de)],
+                    'spectral_centroid': np.sum(freqs_de * mag_de) / np.sum(mag_de) if np.sum(mag_de) != 0 else 0,
+                    'spectral_bandwidth': np.sqrt(np.sum(mag_de * (freqs_de - (np.sum(freqs_de * mag_de) / np.sum(mag_de)))**2) / np.sum(mag_de)) if np.sum(mag_de) != 0 else 0,
+                    'peak_fft': np.max(mag_de),
+                    'total_energy': np.sum(mag_de**2)
+                }
+                # Compute frequency features for FE
+                fft_vals_fe = np.fft.rfft(fe_windows[i])
+                mag_fe = np.abs(fft_vals_fe)
+                freqs_fe = np.fft.rfftfreq(len(fe_windows[i]), d=1/fs)
+                fe_feats = {
+                    'dominant_freq': freqs_fe[np.argmax(mag_fe)],
+                    'spectral_centroid': np.sum(freqs_fe * mag_fe) / np.sum(mag_fe) if np.sum(mag_fe) != 0 else 0,
+                    'spectral_bandwidth': np.sqrt(np.sum(mag_fe * (freqs_fe - (np.sum(freqs_fe * mag_fe) / np.sum(mag_fe)))**2) / np.sum(mag_fe)) if np.sum(mag_fe) != 0 else 0,
+                    'peak_fft': np.max(mag_fe),
+                    'total_energy': np.sum(mag_fe**2)
+                }
+                # Merge the two dictionaries with prefixes
+                merged_dict = {}
+                for k, v in de_feats.items():
+                    merged_dict["DE_" + k] = v
+                for k, v in fe_feats.items():
+                    merged_dict["FE_" + k] = v
+                merged_features[filename].append(merged_dict)
+        else:
+            # If only one channel exists, process that channel and prefix its keys.
+            for channel in channels:
+                feats_list = []
+                for window in channels[channel]:
                     fft_vals = np.fft.rfft(window)
                     mag = np.abs(fft_vals)
-                    
-                    # Frequency bins corresponding to the FFT values
                     freqs = np.fft.rfftfreq(len(window), d=1/fs)
-                    
-                    # Dominant Frequency: frequency at maximum magnitude
-                    dominant_freq = freqs[np.argmax(mag)]
-                    
-                    # Spectral Centroid: weighted average of frequencies
-                    spectral_centroid = np.sum(freqs * mag) / np.sum(mag) if np.sum(mag) != 0 else 0
-                    
-                    # Spectral Bandwidth: weighted standard deviation around the centroid
-                    spectral_bandwidth = np.sqrt(np.sum(mag * (freqs - spectral_centroid)**2) / np.sum(mag)) if np.sum(mag) != 0 else 0
-                    
-                    # Peak FFT Amplitude: maximum amplitude in the FFT
-                    peak_fft = np.max(mag)
-                    
-                    # Total Spectral Energy: sum of squared FFT magnitudes
-                    total_energy = np.sum(mag**2)
-                    
-                    feat_dict = {
-                        'dominant_freq': dominant_freq,
-                        'spectral_centroid': spectral_centroid,
-                        'spectral_bandwidth': spectral_bandwidth,
-                        'peak_fft': peak_fft,
-                        'total_energy': total_energy
+                    feats = {
+                        'dominant_freq': freqs[np.argmax(mag)],
+                        'spectral_centroid': np.sum(freqs * mag) / np.sum(mag) if np.sum(mag) != 0 else 0,
+                        'spectral_bandwidth': np.sqrt(np.sum(mag * (freqs - (np.sum(freqs * mag) / np.sum(mag)))**2) / np.sum(mag)) if np.sum(mag) != 0 else 0,
+                        'peak_fft': np.max(mag),
+                        'total_energy': np.sum(mag**2)
                     }
-                    channel_features.append(feat_dict)
-                features_dict[filename][channel] = channel_features
-    return features_dict
+                    # Prefix with channel name
+                    prefixed = { f"{channel}_{k}": v for k, v in feats.items() }
+                    feats_list.append(prefixed)
+                merged_features[filename] = feats_list
+    return merged_features
+
 
 if __name__ == "__main__":
     # Test the feature extraction functions with simulated segmented signals.

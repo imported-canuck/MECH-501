@@ -86,46 +86,29 @@ def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
 def normalize_features(features_dict):
     """
     Parameters: 
-        features_dict (dict): Dictionary with one of the following structures:
-            Case 1 (separate channels):
-            { filename: { 
-                  'DE': [ {feat1: value, feat2: value, ...}, ... ],
-                  'FE': [ {feat1: value, feat2: value, ...}, ... ]
-              },
-              ... }
-            Case 2 (merged channels):
+        features_dict (dict): Merged features dictionary with the structure:
             { filename: [ {feat1: value, feat2: value, ...}, ... ],
               ... }
-
+    
     Returns:
         X_normalized (np.array): Normalized feature matrix of shape (n_samples, n_features).
-        keys (list): A list of tuples (filename, channel, window_index) corresponding to each sample.
+        keys (list): A list of tuples (filename, "merged", window_index) corresponding to each sample.
     
-    Places feature dictionaries into a matrix, yielding a matrix contianing the 
-    time/frequency domain features of each data point per row. keys provides the
-    mapping to the files each row of X_normalized belongs to.
+    This function flattens the merged features dictionary into a 2D feature matrix and normalizes it.
     """
     data = []
     keys = []
-    for filename, value in features_dict.items():
-        if isinstance(value, dict):
-            # Process separate channels
-            for channel, feats_list in value.items():
-                for idx, feat_dict in enumerate(feats_list):
-                    ordered_feats = [feat_dict[k] for k in sorted(feat_dict.keys())]
-                    data.append(ordered_feats)
-                    keys.append((filename, channel, idx))
-        elif isinstance(value, list):
-            # Process merged features
-            for idx, feat_dict in enumerate(value):
-                ordered_feats = [feat_dict[k] for k in sorted(feat_dict.keys())]
-                data.append(ordered_feats)
-                keys.append((filename, "merged", idx))
+    for filename, feats_list in features_dict.items():
+        for idx, feat_dict in enumerate(feats_list):
+            ordered_feats = [feat_dict[k] for k in sorted(feat_dict.keys())]
+            data.append(ordered_feats)
+            keys.append((filename, "merged", idx))
     data = np.array(data)
     from sklearn.preprocessing import StandardScaler
     scaler = StandardScaler()
     X_normalized = scaler.fit_transform(data)
     return X_normalized, keys
+
 
 def train_and_evaluate_classifier(X, keys):
     """

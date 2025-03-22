@@ -6,98 +6,126 @@ from BearingData import (
 )
 from LoadSignals import load_signals 
 from Preprocess import downsample, segment_signals
-from ExtractFeatures import time_domain_features, frequency_domain_features, merge_channel_features
+from ExtractFeatures import time_domain_features, frequency_domain_features
 from NaiveBayesClassifier import normalize_features, train_and_evaluate_classifier
 import numpy as np
+import matplotlib.pyplot as plt
 
-def run_pipeline():
+def merge_time_and_freq_features(td_features, fd_features):
     """
-    Runs the entire pipeline once:
-      - Loads signals from all RPM dictionaries
-      - Combines, downsamples, segments, and extracts features
-      - Merges DE and FE features
-      - Normalizes the merged features and trains/evaluates the Naïve Bayes classifier
-    Returns the classification report (as a dictionary) and the confusion matrix.
+    Merges time-domain and frequency-domain features for each file on a window-by-window basis.
+    
+    Assumes that both td_features and fd_features are dictionaries with keys as filenames and values
+    as lists of merged feature dictionaries (one per window). For each window, this function creates a
+    new dictionary that contains all time-domain features (prefixed with "TD_") and all frequency-domain
+    features (prefixed with "FD_").
+    
+    Parameters:
+        td_features (dict): Merged time-domain feature dictionary:
+            { filename: [ {feat1: value, ...}, {feat1: value, ...}, ... ], ... }
+        fd_features (dict): Merged frequency-domain feature dictionary with the same structure.
+    
+    Returns:
+        merged_features (dict): Dictionary with the structure:
+            { filename: [ { "TD_<feat>": value, "FD_<feat>": value, ... }, ... ], ... }
     """
-    # Load signals for all RPMs
+    merged_features = {}
+    for filename in td_features:
+        merged_features[filename] = []
+        # Get the number of windows (take the minimum in case of a mismatch)
+        n_windows = min(len(td_features[filename]), len(fd_features.get(filename, [])))
+        for i in range(n_windows):
+            merged_dict = {}
+            # Add time-domain features with prefix "TD_"
+            for k, v in td_features[filename][i].items():
+                merged_dict["TD_" + k] = v
+            # Add frequency-domain features with prefix "FD_"
+            for k, v in fd_features[filename][i].items():
+                merged_dict["FD_" + k] = v
+            merged_features[filename].append(merged_dict)
+    return merged_features
+
+
+def run_pipeline_features(feature_set, window_size, overlap):
+    """
+    Runs the entire pipeline once for a given feature set, window size, and overlap.
+    
+    Parameters:
+        feature_set (str): One of "time", "freq", or "both"
+        window_size (int): The window size to use for segmentation.
+        overlap (float): The fractional overlap between consecutive windows.
+    
+    Returns:
+        report (dict): Classification report dictionary.
+        cm (np.array): Confusion matrix.
+    """
+    # Load signals from all RPM dictionaries
     signals_1730RPM = load_signals(files_1730RPM)
     signals_1750RPM = load_signals(files_1750RPM)
     signals_1772RPM = load_signals(files_1772RPM)
     signals_1797RPM = load_signals(files_1797RPM)
     
-    # Combine signals from all four RPM dictionaries into a single dictionary
+    # Combine signals
     all_signals = {}
     all_signals.update(signals_1730RPM)
     all_signals.update(signals_1750RPM)
     all_signals.update(signals_1772RPM)
     all_signals.update(signals_1797RPM)
     
-    # Preprocess the combined signals: downsample and segment.
+    # Preprocess: downsample and segment (using given window_size and overlap)
     ds_signals = downsample(all_signals)
-    seg_signals = segment_signals(ds_signals)
+    seg_signals = segment_signals(ds_signals, window_size, overlap)
     
-    # Extract time-domain (or frequency-domain) features. Here we use time-domain.
-    td_features = time_domain_features(seg_signals)
-    # Merge DE and FE features so that each window is represented by one combined feature vector.
-    merged_features = merge_channel_features(td_features)
+    if feature_set == "time":
+        features = time_domain_features(seg_signals)
+    elif feature_set == "freq":
+        features = frequency_domain_features(seg_signals, fs=12000)
+    elif feature_set == "both":
+        td_feats = time_domain_features(seg_signals)
+        fd_feats = frequency_domain_features(seg_signals, fs=12000)
+        features = merge_time_and_freq_features(td_feats, fd_feats)
+    else:
+        raise ValueError("Unknown feature set: choose from 'time', 'freq', or 'both'")
     
-    # Normalize the extracted features and flatten the structure to get a 2D feature matrix.
-    X_norm, feature_keys = normalize_features(merged_features)
-    
-    # Train and evaluate the Naïve Bayes classifier on the combined dataset.
-    # Splitting: faulty data with sizes '7'/'14' for training, '21' for testing; Normal data split 2:1.
+    X_norm, feature_keys = normalize_features(features)
     report, cm = train_and_evaluate_classifier(X_norm, feature_keys)
     return report, cm
 
-def average_reports(reports):
-    """
-    Averages a list of classification report dictionaries.
-    
-    Parameters:
-        reports (list): List of classification report dictionaries (one per run).
-    
-    Returns:
-        avg_report (dict): Dictionary with the averaged metrics.
-    """
-    avg_report = {}
-    n = len(reports)
-    for rep in reports:
-        for key, metrics in rep.items():
-            # Initialize based on type
-            if key not in avg_report:
-                if isinstance(metrics, dict):
-                    avg_report[key] = {}
-                else:
-                    avg_report[key] = 0.0
-            # Add the metrics based on their type
-            if isinstance(metrics, dict):
-                for m_key, m_val in metrics.items():
-                    avg_report[key][m_key] = avg_report[key].get(m_key, 0) + m_val
-            else:
-                avg_report[key] += metrics
-    # Divide each accumulated value by n
-    for key, metrics in avg_report.items():
-        if isinstance(metrics, dict):
-            for m_key in metrics:
-                avg_report[key][m_key] = round(metrics[m_key] / n, 2)
-        else:
-            avg_report[key] = round(metrics / n, 2)
-    return avg_report
-
 def main():
-    n_runs = 30
-    reports = []
+    window_sizes = list(range(500, 12000 + 1, 500))
+    overlap_values = [0.25] ### EDITING
+    feature_sets = ["time"]
+    # Dictionary to store results: results[feature_set][overlap][window_size] = accuracy
+    results = {fs: {ov: {} for ov in overlap_values} for fs in feature_sets}
     
-    for i in range(n_runs):
-        print(f"\n--- Run {i+1} ---")
-        report, cm = run_pipeline()
-        reports.append(report)
+    for fs in feature_sets:
+        for ov in overlap_values:
+            print(f"\n=== Running experiments for feature set: {fs}, overlap: {ov} ===")
+            for ws in window_sizes:
+                print(f"\nTesting window size: {ws}")
+                report, cm = run_pipeline_features(fs, ws, ov)
+                accuracy = report.get("accuracy", 0)
+                results[fs][ov][ws] = round(accuracy, 4)
+                print(f"Feature set: {fs}, Overlap: {ov}, Window size: {ws}, Accuracy: {results[fs][ov][ws]:.4f}")
     
-    avg_report = average_reports(reports)
-    print("\n=== Average Classification Report over 30 runs ===")
-    # For pretty printing, you might iterate over the avg_report dictionary.
-    for class_label, metrics in avg_report.items():
-        print(f"{class_label}: {metrics}")
+    # Plot 12 graphs: for each feature set and each overlap
+    for fs in feature_sets:
+        for ov in overlap_values:
+            ws_list = sorted(results[fs][ov].keys())
+            acc_list = [results[fs][ov][w] for w in ws_list]
+            plt.figure()
+            plt.plot(ws_list, acc_list, marker='o')
+            plt.xlabel("Window Size")
+            plt.ylabel("Accuracy")
+            plt.title(f"Accuracy vs Window Size\nFeature set: {fs.capitalize()}, Overlap: {ov}")
+            plt.grid(True)
+            plt.ylim(0, 1)
+            plt.xticks(ws_list, rotation=45)
+            plt.tight_layout()
+            save_path = f"C:/Users/cagri/Downloads/accuracy_{fs}_{ov}.png"
+            plt.savefig(save_path)
+            plt.close()
+            print(f"Saved plot to {save_path}")
 
 if __name__ == "__main__":
     main()
