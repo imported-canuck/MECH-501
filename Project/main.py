@@ -122,7 +122,7 @@ def main():
             plt.ylim(0, 1)
             plt.xticks(ws_list, rotation=45)
             plt.tight_layout()
-            save_path = f"C:/Users/NAME/Downloads/accuracy_{fs}_{ov}.png"
+            save_path = f"C:/Users/NAME/Downloads/accuracy_{fs}_{ov}.png" # Put filepath here
             plt.savefig(save_path)
             plt.close()
             print(f"Saved plot to {save_path}")
