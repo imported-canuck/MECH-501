@@ -121,10 +121,16 @@ def preprocess_and_save(
     out_path='preprocessed_data.pkl'
 ):
     """
-    1) Load signals from BearingData.
-    2) Downsample them to 12 kHz.
-    3) Segment them by window_size & overlap.
-    4) Save the resulting dictionary (seg_signals) as a pickle.
+    Preprocesses vibration signals from BearingData by loading, downsampling, 
+    segmenting, and saving them as a pickle file.
+
+    Args:
+        window_size (int, optional): The size of each segment window. Defaults to 12000.
+        overlap (float, optional): The fraction of overlap between consecutive windows. Defaults to 0.5.
+        out_path (str, optional): The file path to save the preprocessed data. Defaults to 'preprocessed_data.pkl'.
+
+    Returns:
+        None: The function saves the preprocessed data to the specified file path.
     """
     # 1) Load all signals from the four dictionaries
     signals_1730 = load_signals(files_1730RPM)

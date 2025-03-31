@@ -7,10 +7,23 @@ from hmmlearn import hmm
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.decomposition import PCA
 
-###############################
-#   Reuse your label parsing  #
-###############################
 def extract_label_and_fault_size(filename):
+    """ # IDENTICAL TO NaiveBayesClassifier.py
+    Extracts the fault label and fault size from a given filename.
+
+    This function parses a filename to determine the type of fault (e.g., "IR", "OR", "B", or "Normal") 
+    and the fault size if applicable. If the filename indicates a "Normal" condition, the fault size 
+    is returned as None.
+
+    Args:
+        filename (str): The filename string to be parsed. Expected format includes fault type 
+                        and optionally fault size, e.g., '1730_IR_7_DE12' or '1730_Normal'.
+
+    Returns:
+        tuple: A tuple containing:
+            - label (str): The fault label ("IR", "OR", "B", or "Normal").
+            - fault_size (str or None): The fault size if present, otherwise None.
+    """
     if "Normal" in filename:
         return "Normal", None
     else:
@@ -30,6 +43,9 @@ def extract_label_and_fault_size(filename):
             fault_size = None
         return label, fault_size
 
+###############################
+#   The main HMM training fn  #
+###############################
 
 def train_and_evaluate_hmm(
     preprocessed_path="preprocessed_data.pkl",
@@ -38,14 +54,27 @@ def train_and_evaluate_hmm(
     random_seed=None
 ):
     """
-    1) Loads segmented signals from `preprocessed_data.pkl`
-    2) Builds sequences (DE+FE columns)
-    3) Splits into train/test by fault size
-    4) (Optional) Applies PCA per time step
-    5) Trains a GaussianHMM for each class
-    6) Evaluates classification
+    Trains and evaluates a Hidden Markov Model (HMM) classifier for fault diagnosis 
+    using preprocessed vibration signal data. This function performs several steps 
+    including data loading, sequence creation, train-test splitting, optional PCA 
+    dimensionality reduction, HMM training for each class, and evaluation of the 
+    classification performance. It is designed to handle multi-class classification 
+    for different fault types and sizes.
 
-    Returns (report, cm).
+    Args:
+        preprocessed_path (str): Path to the preprocessed data file (pickle format) 
+            containing segmented signals for each vibration channel.
+        n_states (int): Number of hidden states for the Gaussian HMM model.
+        pca_components (int, optional): Number of PCA components to reduce the 
+            dimensionality of the time-step features. If None, PCA is not applied.
+        random_seed (int, optional): Random seed for reproducibility. If None, 
+            randomness is not controlled.
+
+    Returns:
+        tuple: A tuple containing:
+            - report (dict): A classification report as a dictionary, including 
+              precision, recall, F1-score, and accuracy for each class.
+            - cm (numpy.ndarray): The confusion matrix for the classification results.
     """
     if random_seed is not None:
         np.random.seed(random_seed)
@@ -127,6 +156,7 @@ def train_and_evaluate_hmm(
         lengths = [len(s) for s in cls_seqs]
         X_concat = np.concatenate(cls_seqs, axis=0)
 
+        # Train HMM model
         model = hmm.GaussianHMM(n_components=n_states, covariance_type='full',
                                 n_iter=100, random_state=random_seed)
         model.fit(X_concat, lengths=lengths)
@@ -142,7 +172,7 @@ def train_and_evaluate_hmm(
             except:
                 score = -1e10
             log_lik[cls] = score
-
+            # Select the class with the highest log likelihood
         best_cls = max(log_lik, key=log_lik.get)
         y_pred.append(best_cls)
 
@@ -162,11 +192,11 @@ def train_and_evaluate_hmm(
 
 
 if __name__ == "__main__":
-    # EXAMPLE usage:
+    # Example usage:
     # We'll load "preprocessed_data.pkl" (the segmented signals)
     train_and_evaluate_hmm(
         preprocessed_path="preprocessed_data.pkl",
         n_states=4,
         pca_components=None,
-        random_seed=42
+        random_seed=69
     )

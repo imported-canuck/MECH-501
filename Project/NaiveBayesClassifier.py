@@ -11,7 +11,20 @@ from sklearn.preprocessing import StandardScaler
 
 def extract_label_and_fault_size(filename):
     """
-    E.g. '1730_IR_7_DE12' → ('IR', '7'), '1730_Normal' → ('Normal', None).
+    Extracts the fault label and fault size from a given filename.
+
+    This function parses a filename to determine the type of fault (e.g., "IR", "OR", "B", or "Normal") 
+    and the fault size if applicable. If the filename indicates a "Normal" condition, the fault size 
+    is returned as None.
+
+    Args:
+        filename (str): The filename string to be parsed. Expected format includes fault type 
+                        and optionally fault size, e.g., '1730_IR_7_DE12' or '1730_Normal'.
+
+    Returns:
+        tuple: A tuple containing:
+            - label (str): The fault label ("IR", "OR", "B", or "Normal").
+            - fault_size (str or None): The fault size if present, otherwise None.
     """
     if "Normal" in filename:
         return "Normal", None
@@ -36,9 +49,25 @@ def extract_label_and_fault_size(filename):
 
 def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
     """
-    Splits X into train/test:
-      - Normal → random split (67% train, 33% test).
-      - Fault sizes 7 or 14 → train, 21 → test.
+    Splits the feature set `X` into training and testing datasets based on the fault size and label.
+    The splitting logic is as follows:
+      - For samples labeled as "Normal", a random split is performed with a default ratio of 67% for training and 33% for testing.
+      - For samples with fault sizes:
+        - Fault sizes 7 or 14 are assigned to the training set.
+        - Fault size 21 is assigned to the testing set.
+
+    Args:
+        X (list or np.ndarray): The feature set to be split.
+        keys (list of tuples): A list of keys where each key is a tuple containing metadata about the sample.
+        normal_split_ratio (float, optional): The ratio for splitting "Normal" samples into training and testing sets. Defaults to 0.67.
+        seed (int, optional): The random seed for reproducibility of the "Normal" sample split. Defaults to 41.
+
+    Returns:
+        tuple: A tuple containing four numpy arrays:
+            - X_train (np.ndarray): Features for the training set.
+            - y_train (np.ndarray): Labels for the training set.
+            - X_test (np.ndarray): Features for the testing set.
+            - y_test (np.ndarray): Labels for the testing set.
     """
     random.seed(seed)  # optional
     X_train, y_train, X_test, y_test = [], [], [], []
@@ -47,7 +76,7 @@ def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
         filename, _, _ = key
         label, fault_size = extract_label_and_fault_size(filename)
 
-        if label == "Normal":
+        if label == "Normal": # Randomly split normal samples
             if random.random() < normal_split_ratio:
                 X_train.append(X[i])
                 y_train.append(label)
@@ -68,12 +97,20 @@ def split_features_by_fault_size(X, keys, normal_split_ratio=0.67, seed=41):
 
 def normalize_features(features_dict):
     """
-    Flatten and normalize a features dictionary:
-      {filename: [ {feat1: val, feat2: val, ...}, ... ] }
+    Flattens and normalizes a dictionary of features.
 
-    Returns (X_normalized, keys):
-      X_normalized: (N, d)
-      keys: list of (filename, "merged", window_idx)
+    Args:
+        features_dict (dict): A dictionary where the keys are filenames and the values 
+                              are lists of dictionaries containing feature-value pairs 
+                              for each window. 
+                              Format: {filename: [ {feat1: val, feat2: val, ...}, ... ]}
+    Returns:
+        tuple: A tuple containing:
+            - X_normalized (numpy.ndarray): A 2D array of shape (N, d) where N is the 
+              total number of feature windows and d is the number of features. The 
+              features are normalized to have zero mean and unit variance.
+            - keys (list): A list of tuples in the format (filename, "merged", window_idx), 
+              where each tuple corresponds to a row in X_normalized.
     """
     data = []
     keys = []
@@ -85,7 +122,7 @@ def normalize_features(features_dict):
             keys.append((filename, "merged", idx))
     data = np.array(data)
 
-    scaler = StandardScaler()
+    scaler = StandardScaler() # Normalize features to zero mean and unit variance
     X_normalized = scaler.fit_transform(data)
     return X_normalized, keys
 
@@ -95,8 +132,16 @@ def normalize_features(features_dict):
 ###############################
 def train_and_evaluate_classifier_from_features(features_path):
     """
-    Loads the features dict from `features_path`,
-    normalizes them, splits them, trains NB, prints metrics.
+    Loads feature data from a file, processes it, trains a Naive Bayes classifier, 
+    and evaluates its performance using classification metrics.
+    
+    Args:
+        features_path (str): Path to the file containing the serialized features dictionary.
+        
+    Returns:
+        tuple: A tuple containing:
+            - report (dict): A dictionary containing the classification report with metrics.
+            - cm (numpy.ndarray): The confusion matrix of the classifier's predictions.
     """
     # 1) Load features
     with open(features_path, 'rb') as f:
@@ -123,7 +168,7 @@ def train_and_evaluate_classifier_from_features(features_path):
 
     report = classification_report(y_test, y_pred, output_dict=True)
     cm = confusion_matrix(y_test, y_pred)
-
+    # Print out classification results 
     print("\n=== Naive Bayes Classification Results ===")
     print("\nClassification Report:\n", classification_report(y_test, y_pred))
     print(f"Accuracy: {report['accuracy']:.4f}") 
@@ -131,8 +176,7 @@ def train_and_evaluate_classifier_from_features(features_path):
 
     return report, cm
 
-
 if __name__ == "__main__":
-    # EXAMPLE USAGE:
+    # Example usage:
     # Suppose you have "features_time.pkl" from `extract_features.py`
     train_and_evaluate_classifier_from_features("features_time.pkl")
