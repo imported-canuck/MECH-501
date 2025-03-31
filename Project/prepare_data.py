@@ -1,4 +1,5 @@
 # prepare_data.py
+
 import numpy as np
 import pickle
 from BearingData import (
@@ -10,18 +11,25 @@ from BearingData import (
 
 def load_signals(rpm_dict):
     """
-    Parameters: 
-        rpm_dict (dict): Dictionary mapping descriptive keys to .npz filenames.
-    Returns: 
-        signals_dict (dict): Dictionary mapping descriptive keys to {'DE': array, 'FE': array}.
-    Flattens each array to 1D.
+    Loads and processes signals from .npz files.
+
+    This function takes a dictionary mapping descriptive keys to .npz filenames, 
+    opens the files, and extracts the DE and FE time-series data. Each array is 
+    flattened to 1D and stored in a nested dictionary structure.
+
+    Args:
+        rpm_dict (dict): A dictionary mapping descriptive keys to .npz filenames.
+
+    Returns:
+        signals_dict (dict): A nested dictionary where the outer keys are descriptive keys, and 
+        the inner keys ('DE', 'FE') map to 1D numpy arrays of time-series data.
     """
     signals_dict = {}
     for key, filename in rpm_dict.items():
         try:
             npz_data = np.load(filename)  # Load the .npz file
         except FileNotFoundError:
-            print(f"Warning: File not found: {filename}")
+            print(f"Warning: File not found: {filename}") # Warn if file is missing (should not happen)
             continue
 
         signals_dict[key] = {}
@@ -33,46 +41,78 @@ def load_signals(rpm_dict):
 
 def downsample(signals_dict, factor=4):
     """
-    If 'DE48' or 'Normal' is in the key, downsample from 48kHz -> 12kHz
-    by taking every 'factor'-th sample. Otherwise, leave as is.
+    Downsamples signals in a nested dictionary structure based on specific conditions.
+
+    This function processes a dictionary of signals, where the outer keys represent 
+    categories (e.g., "DE48", "Normal"), and the inner keys represent individual 
+    signal identifiers. If the outer key contains "DE48" or "Normal", the function 
+    downsamples the signals from 48 kHz to 12 kHz by taking every `factor`-th sample. 
+    Otherwise, the signals are left unchanged.
+
+    Args:
+        signals_dict (dict): A nested dictionary where the outer keys are categories 
+            (e.g., "DE48", "Normal"), and the inner keys map to arrays of signal data.
+        factor (int, optional): The downsampling factor. Defaults to 4.
+
+    Returns:
+        normalized_signals (dict): A nested dictionary with the same structure as `signals_dict`, where 
+        signals have been downsampled if their category matches the specified conditions.
     """
     normalized_signals = {}
     for outer_key, inner_dict in signals_dict.items():
         normalized_signals[outer_key] = {}
         # Check if the outer key indicates 48 kHz or Normal (which is also 48 kHz)
-        if "DE48" in outer_key or "Normal" in outer_key:
-            for inner_key, inner_arr in inner_dict.items():
-                normalized_signals[outer_key][inner_key] = inner_arr[::factor]
-        else:
+        if "DE48" in outer_key or "Normal" in outer_key: # Cases where downsampling should be done
+            for inner_key, inner_arr in inner_dict.items(): # Downsample the signal
+                normalized_signals[outer_key][inner_key] = inner_arr[::factor] # (nested dict)
+        else: # Cases where downsampling should not be done
+            # Copy the original signal without downsampling
             for inner_key, inner_arr in inner_dict.items():
                 normalized_signals[outer_key][inner_key] = inner_arr
-    return normalized_signals
+    return normalized_signals 
 
-def window_signal(signal, window_size=12000, overlap=0.5):
+def window_signal(signal, window_size=12000, overlap=0.5): # Helper function for segment_signals
     """
-    Splits a 1D array into overlapping windows of length `window_size`.
-    Overlap is a fraction (e.g. 0.5 means 50% overlap).
+    Splits a 1D signal array into overlapping windows.
+
+    Args:
+        signal (numpy.ndarray): The input 1D array to be split into windows.
+        window_size (int, optional): The size of each window. Default is 12000.
+        overlap (float, optional): The fraction of overlap between consecutive windows. 
+            Must be between 0 and 1. Default is 0.5 (50% overlap).
+
+    Returns:
+        numpy.ndarray (np.array): A 2D array where each row corresponds to a window of the input signal.
     """
-    step = int(window_size * (1 - overlap))
+    step = int(window_size * (1 - overlap)) # Set step location
     windows = []
-    for start in range(0, len(signal) - window_size + 1, step):
-        window = signal[start : start + window_size]
-        windows.append(window)
+    for start in range(0, len(signal) - window_size + 1, step): # Segment the signal
+        window = signal[start : start + window_size] # Extract the window
+        windows.append(window) # Add the signal segment to the array
     return np.array(windows)
 
 def segment_signals(signals_dict, window_size=2000, overlap=0.5):
     """
-    For each key in signals_dict, produce 2D arrays:
-      signals_dict[key]['DE'] -> shape (#windows, window_size)
-      signals_dict[key]['FE'] -> shape (#windows, window_size)
-    """
-    segmented_signals = {}
+    Segments time-series signals into overlapping windows, with overlap and window size defined.
+
+    Args:
+        signals_dict (dict): A dictionary where each key is a filename, and the value is another dictionary 
+            containing signal channels (e.g., 'DE', 'FE') as keys and their corresponding time-series data as values.
+        window_size (int, optional): The size of each window. Defaults to 2000.
+        overlap (float, optional): The fraction of overlap between consecutive windows. Defaults to 0.5.
+
+    Returns:
+        segmented_signals (dict): A dictionary with the same structure as `signals_dict`, but the values for each channel 
+            are 2D arrays of segmented windows with shape (#windows, window_size).
+    """   
+    segmented_signals = {} # Initialize the dictionary to hold segmented signals
+    # Iterate through the signals dictionary and segment each signal
     for filename, channels in signals_dict.items():
         segmented_signals[filename] = {}
-        for channel in ['DE', 'FE']:
+        for channel in ['DE', 'FE']: # Iterate through the channels
             if channel in channels:
-                seg = window_signal(channels[channel], window_size, overlap)
-                segmented_signals[filename][channel] = seg
+                seg = window_signal(channels[channel], window_size, overlap) # Call window_signal to segment the signal
+                segmented_signals[filename][channel] = seg #Append the segmented signal to the dictionary
     return segmented_signals
 
 def preprocess_and_save(
