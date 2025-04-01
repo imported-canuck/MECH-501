@@ -5,7 +5,7 @@
 import random
 import os
 import matplotlib.pyplot as plt
-from pprint import pprint
+from pathlib import Path
 from prepare_data import preprocess_and_save
 from extract_features import extract_and_save
 from HMMClassifier import train_and_evaluate_hmm 
@@ -56,19 +56,7 @@ if __name__ == "__main__":
         hmm_accuracies.append(hmm_acc)
         nb_accuracies.append(nb_acc)
 
-    # Graph 1: Only HMM Accuracy vs Window Size
-    plt.figure(figsize=(8,6))
-    plt.plot(window_sizes, hmm_accuracies, marker='o', linestyle='-', color='blue')
-    plt.xlabel("Window Size")
-    plt.ylabel("HMM Accuracy")
-    plt.title("HMM Accuracy vs Window Size")
-    plt.grid(True)
-    downloads_path1 = os.path.expanduser("C:/Users/cagri/Downloads/HMM_accuracy_vs_window_size.png")
-    plt.savefig(downloads_path1)
-    print(f"\nGraph saved to: {downloads_path1}")
-    plt.show()
-
-    # Graph 2: Both HMM and NB Accuracy vs Window Size
+    # Graph 1: Both HMM and NB Accuracy vs Window Size
     plt.figure(figsize=(8,6))
     plt.plot(window_sizes, hmm_accuracies, marker='o', linestyle='-', color='blue', label="HMM Accuracy")
     plt.plot(window_sizes, nb_accuracies, marker='o', linestyle='-', color='red', label="NB Accuracy")
@@ -77,7 +65,7 @@ if __name__ == "__main__":
     plt.title("HMM and NB Accuracy vs Window Size")
     plt.legend()
     plt.grid(True)
-    downloads_path2 = os.path.expanduser("C:/Users/cagri/Downloads/HMM_and_NB_accuracy_vs_window_size.png")
-    plt.savefig(downloads_path2)
-    print(f"\nGraph saved to: {downloads_path2}")
+    downloads_path1 = Path.home() / "Downloads" / "HMM_and_NB_accuracy_vs_window_size.png"
+    plt.savefig(downloads_path1)
+    print(f"\nGraph saved to: {downloads_path1}")
     plt.show()
