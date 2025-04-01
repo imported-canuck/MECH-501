@@ -1,5 +1,5 @@
 '''
-LoadSignal.py
+LoadSignals.py
 
 This script loads bearing vibration data from four dictionaries of filepaths:
  - files_1730RPM

@@ -146,4 +146,3 @@ if __name__ == "__main__":
         for location, windows in channels.items():
             print(f"{desc} location {location}: segmented shape = {windows.shape}")
     # Confirm that the signals have been segmented into 2D np array as expected
-
